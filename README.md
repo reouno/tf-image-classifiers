@@ -1,4 +1,4 @@
-# directories
+# Directories
 
 - nets
     - network definition files that can be called from train/test/predict scripts
