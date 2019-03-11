@@ -33,5 +33,5 @@ You can use trained models as image classifiers that take an image file as input
 - save summary figure. saving directory must already exist.
 
 ```
-python predict.py -t [repo_root]/sample/image/mnist_9.jpg -m [model path] -s [save dir]
+python predict.py -t [repo_root]/sample/image/mnist_9.jpg -m [model path (h5)] -s [save dir]
 ```
