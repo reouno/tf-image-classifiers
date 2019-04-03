@@ -1,9 +1,10 @@
 import glob
+import os
 from tensorflow import keras
 from typing import Text, Tuple, Union
 
 import data_generator
-from utils.fs import get_all_img_files
+from utils.fs import get_all_img_files, list_dir
 
 # name of predefined dataset
 DATASET_MNIST = 'MNIST'
@@ -37,18 +38,18 @@ class Dataset:
             validation_data: Text='',
             input_shape: Union[None, Tuple[int, int, int]]=None,
             output_units: int=None,
-            target_size: Tuple[int, int]=(224,224),
             color_mode: Text='rgb',
+            batch_size: int=32,
             class_mode: Text='categorical',
             ):
         '''
         :param data: dataset name or directory path. If specify detectory path, the sub directory names have to be the class names and the no. of sub directories must be equal to the no. of classes.
-        :param input_shape: input shape in the format (H,W,D). This has to be specified if using own dataset.
+        :param input_shape: input shape in the format (H,W,D). This has to be specified if using own dataset, namely `data` is a directory path.
         :param output_units: the number of classes.
         :param test_data: test dataset directory, if any. This argument needs to be set only if `data` is a directory path.
         :param validation_data: validation dataset directory, if any. This argument needs to be set only if `data` is a directory path.
-        :param target_size: target image size. This argument needs to be set only if `dataset` is a directory path.
         :param color_mode: color mode of input image data. One of "grayscale", "rgb", and "rgba". This argument needs to be set only if `dataset` is a directory path.
+        :param batch_size: batch size for image data generator from directory.
         :param class_mode: classification mode. This argument needs to be set only if `dataset` is a directory path. See "data_generator.py" for more details.
         '''
         self.data = data
@@ -56,8 +57,8 @@ class Dataset:
         self.validation_data = validation_data
         self.input_shape = input_shape
         self.output_units = output_units
-        self.target_size = target_size
         self.color_mode = color_mode
+        self.batch_size = batch_size
         self.class_mode = class_mode
         if self.data.upper() == DATASET_MNIST:
             self.__mnist()
@@ -98,6 +99,7 @@ class Dataset:
     def __data_from_dir(self):
         '''create image data generator from directory
         '''
+        self.output_units = len(list_dir(self.data))
 
         # training data
         train_datagen = keras.preprocessing.image.ImageDataGenerator(
@@ -108,7 +110,7 @@ class Dataset:
                 )
         self.train_generator = train_datagen.flow_from_directory(
                 self.data,
-                target_size=self.target_size,
+                target_size=self.input_shape[:2],
                 color_mode=self.color_mode,
                 batch_size=self.batch_size,
                 class_mode=self.class_mode
@@ -120,7 +122,7 @@ class Dataset:
                 )
         self.test_generator = test_datagen.flow_from_directory(
                 self.test_data,
-                target_size=self.target_size,
+                target_size=self.input_shape[:2],
                 color_mode=self.color_mode,
                 batch_size=self.batch_size,
                 class_mode=self.class_mode
@@ -132,7 +134,7 @@ class Dataset:
                 )
         self.validation_generator = validation_datagen.flow_from_directory(
                 self.validation_data,
-                target_size=self.target_size,
+                target_size=self.input_shape[:2],
                 color_mode=self.color_mode,
                 batch_size=self.batch_size,
                 class_mode=self.class_mode

@@ -1,13 +1,13 @@
 from tensorflow import keras
-from keras.applications import NASNetMobile, NASNetLarge
+from keras.applications.nasnet import NASNetMobile, NASNetLarge
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.models import Model, Sequential
-from typing import Text, Tuple, Union
+from typing import List, Text, Tuple, Union
 
 def nasnet(
         model_type: Text,
         in_shape: Union[None, Tuple[int, int, int]],
-        out_units: int
+        out_units: int,
         weights: Union[None, Text]=None,
         full_conn: Union[None, List[int]]=None
         ):
@@ -84,13 +84,13 @@ def nasnet_fine_tune(
     if model_type.upper() == LARGE:
         base_model = NASNetLarge(
                 include_top=False,
-                weights=weights,
+                weights='imagenet',
                 input_tensor=input_tensor
                 )
     elif model_type.upper() == MOBILE:
         base_model = NASNetMobile(
                 include_top=False,
-                weights=weights,
+                weights='imagenet',
                 input_tensor=input_tensor
                 )
     else:
@@ -102,14 +102,14 @@ def nasnet_fine_tune(
     else:
         top_model = Sequential()
         top_model.add(Flatten(input_shape=base_model.output_shape[1:]))
-        for n in full_conn:
+        for n in full_conn[:-1]: # except the output layer
             assert n > 0
             if n < 1: # means dropout
                 top_model.add(Dropout(n))
             else: # full connection layer
                 top_model.add(Dense(n, activation='relu'))
 
-        top_model.add(Dense(out_units, activation='softmax'))
+        top_model.add(Dense(full_conn[-1], activation='softmax'))
         model = Model(inputs=base_model.input, outputs=top_model(base_model.output))
 
     # freeze convolutional layers

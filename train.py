@@ -12,6 +12,7 @@ from typing import List, Text, Tuple, Union
 
 import call_backs as cb
 import data_generator as dg
+from dataset import Dataset
 from get_args import arg_parser
 #from nets.fcn import fcn
 from logger import Logger
@@ -31,12 +32,15 @@ NET_SML_CNN = 'SMALL_CNN'
 NET_MID_CNN = 'MIDDLE_CNN'
 NET_MID_CNN_DP = 'MIDDLE_CNN_DP'
 NET_MBNV2 = 'MOBILENET_V2'
+NET_MBNV2_CUSTOM_FULL = 'MOBILENET_V2_CUSTOM_FULL'
 NET_NAS_L = 'NASNET_LARGE'
 NET_NAS_M = 'NASNET_MOBILE'
 NET_XCEPTION = 'XCEPTION'
 
 # for Mobilenet V2
-ALPHA_FOR_MBN2 = 0.7
+ALPHA_FOR_MBN2 = 1.0
+ORIGINAL = 'ORIGINAL'
+CUSTOM_FULL = 'CUSTOM_FULL'
 
 # for NASNet
 NAS_LARGE = 'LARGE'
@@ -104,98 +108,87 @@ def main(network: Text,
 
     # load data
     if dataset.upper() == DATASET_MNIST:
-        (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+        #(x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+        data = Dataset('mnist')
+        assert data.input_shape == (28, 28)
+        assert data.output_units == 10
+        assert data.num_train == 60000
+        assert data.num_test == 10000
+        assert data.num_validation is None
     elif dataset.upper() == DATASET_CIFAR10:
-        (x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
-        assert x_train.shape == (50000, 32, 32, 3)
-        assert y_train.shape == (50000, 1)
-        assert x_test.shape == (10000, 32, 32, 3)
-        assert y_test.shape == (10000, 1)
+        #(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
+        data = Dataset('cifar10')
+        assert data.input_shape == (32, 32, 1)
+        assert data.output_units == 10
+        assert data.num_train == 50000
+        assert data.num_test == 10000
+        assert data.num_validation is None
     elif os.path.isdir(dataset):
-        pass
+        data = Dataset(
+                dataset,
+                test_data=test_data,
+                validation_data=validation_data,
+                input_shape=target_size + (3,),
+                batch_size=batch_size,
+                class_mode=class_mode
+                )
+        assert data.train_generator is not None
+        assert data.test_generator is not None
+        assert data.validation_generator is not None
+        assert type(data.num_train) is int
+        assert type(data.num_test) is int
+        assert type(data.num_validation) is int
+        print(data.num_train)
+        print(data.num_test)
+        print(data.num_validation)
     else:
         # to be implemented
         # or invalid dataset name or directory name
         raise RuntimeError('no such dataset or directory, "{}".'.format(dataset))
 
-    # define in/out
-    input_shape = None
-    output_units = None
-    if dataset.upper() in [DATASET_MNIST, DATASET_CIFAR10]:
-        input_shape = x_train.shape[1:]
-        output_units = 10
-    elif os.path.isdir(dataset):
-        input_shape = (target_size[0], target_size[1], 3)
-        output_units = len(utils.fs.list_dir(dataset))
-    else:
-        raise RuntimeError('no such dataset, "{}"'.format(dataset))
-    assert input_shape is not None
-    assert output_units is not None
-
-
-    # show sample
-    if dataset.upper() in [DATASET_MNIST, DATASET_CIFAR10]:
-        utils.draw.draw_images(x_train[:25], plt_size=(5,5), save_dir=save_dir)
-    #elif dataset.upper() == DATASET_CIFAR10:
-    #    utils.draw_images(x_train[
-
-    # preprocessing
-    if dataset.upper() == DATASET_MNIST:
-        x_train = x_train / 255.0 # [0, 1]
-        x_test = x_test / 255.0
-        log.debug('x_train.shape: {}'.format(x_train.shape))
-        assert len(x_train.shape) == 3
-    elif dataset.upper() == DATASET_CIFAR10:
-        train_generator, validation_generator = dg.img_data_gen(x_train,
-                y_train,
-                x_test,
-                y_test,
-                batch_size=BATCH_SIZE_FOR_DATA_GEN
-                )
-    elif os.path.isdir(dataset):
-        train_generator, test_generator, validation_generator = dg.img_data_gen_from_dir(
-                dataset,
-                test_data,
-                validation_data,
-                target_size=target_size,
-                batch_size=batch_size,
-                class_mode=class_mode
-                )
-    else:
-        # to be implemented
-        raise RuntimeError('no such dataset, {}'.format(dataset))
-
     # load network
     if network.upper() == NET_FCN:
-        model = nets.fcn.fcn([input_shape,128,output_units])
+        model = nets.fcn.fcn([data.input_shape,128,data.output_units])
     elif network.upper() == NET_SML_CNN:
-        model = nets.cnn_basic.cnn('small_cnn', input_shape, output_units)
+        model = nets.cnn_basic.cnn('small_cnn', data.input_shape, data.output_units)
     elif network.upper() == NET_MID_CNN:
-        model = nets.cnn_basic.cnn('middle_cnn', input_shape, output_units)
+        model = nets.cnn_basic.cnn('middle_cnn', data.input_shape, data.output_units)
     elif network.upper() == NET_MID_CNN_DP:
-        model = nets.cnn_basic.cnn('middle_cnn_dp', input_shape, output_units)
+        model = nets.cnn_basic.cnn('middle_cnn_dp', data.input_shape, data.output_units)
     elif network.upper() == NET_MBNV2:
         model = nets.mobilenet_v2.mobilenet_v2(
-                input_shape,
-                output_units,
+                ORIGINAL,
+                data.input_shape,
+                data.output_units,
+                alpha=ALPHA_FOR_MBN2
+                )
+    elif network.upper() == NET_MBNV2_CUSTOM_FULL:
+        model = nets.mobilenet_v2.mobilenet_v2(
+                CUSTOM_FULL,
+                data.input_shape,
+                data.output_units,
+                weights=weights,
+                full_conn=full_conn,
                 alpha=ALPHA_FOR_MBN2
                 )
     elif network.upper() == NET_NAS_L:
         model = nets.nasnet.nasnet(
                 NAS_LARGE,
-                input_shape,
-                output_units
+                data.input_shape,
+                data.output_units,
+                weights=weights,
+                full_conn=full_conn
                 )
     elif network.upper() == NET_NAS_M:
         model = nets.nasnet.nasnet(
                 NAS_MOBILE,
-                input_shape,
-                output_units
+                data.input_shape,
+                data.output_units
                 )
     elif network.upper() == NET_XCEPTION:
         model = nets.xception.xception(
-                input_shape,
-                output_units,
+                data.input_shape,
+                data.output_units,
                 weights=weights,
                 full_conn=full_conn
                 )
@@ -225,31 +218,20 @@ def main(network: Text,
     checkpoint = cb.modelCheckpoint(save_dir)
     tensorboard = cb.tensorboard(save_dir)
 
-    #log.debug('x_train.shape: {}'.format(x_train.shape))
-    #log.debug('y_train.shape: {}'.format(y_train.shape))
     # train
-    if dataset.upper() == DATASET_MNIST:
-        model.fit(x_train,
-                  y_train,
+    if dataset.upper() in [DATASET_MNIST, DATASET_CIFAR10]:
+        model.fit(data.x_train,
+                  data.y_train,
                   batch_size=batch_size,
                   epochs=num_epochs,
                   callbacks=[checkpoint, batch_stats, tensorboard]
                   )
-    elif dataset.upper() == DATASET_CIFAR10:
-        model.fit_generator(
-                train_generator,
-                steps_per_epoch=len(x_train) / BATCH_SIZE_FOR_DATA_GEN,
-                epochs = num_epochs,
-                validation_data=validation_generator,
-                validation_steps=VALIDATION_STEPS,
-                callbacks=[checkpoint, batch_stats, tensorboard]
-                )
     elif os.path.isdir(dataset):
         model.fit_generator(
-                train_generator,
-                steps_per_epoch=math.ceil(num_train_data / batch_size),
+                data.train_generator,
+                steps_per_epoch=math.ceil(data.num_train / batch_size),
                 epochs = num_epochs,
-                validation_data=validation_generator,
+                validation_data=data.validation_generator,
                 validation_steps=VALIDATION_STEPS,
                 callbacks=[checkpoint, batch_stats, tensorboard]
                 )
@@ -258,20 +240,11 @@ def main(network: Text,
     dt = '{0:%Y%m%d-%H%M%S}'.format(datetime.datetime.now())
     filename = '{}_{}.h5'.format(network, dt)
     filepath = os.path.join(save_dir, filename)
-    #if 'MOBILENET' in network.upper():
-    #    output_path = tf.contrib.saved_model.save_keras_model(
-    #            model,
-    #            save_dir
-    #            )
-    #    log.info('trained model of "{}" has been saved as "{}".'.format(network, output_path))
-    #else:
-    #    model.save(filepath)
     model.save(filepath)
 
     # save the class labels
-    if dataset.upper == DATASET_CIFAR10 or os.path.isdir(dataset):
-        #print(train_generator.class_indices)
-        class_indices = sorted([[v,k] for k,v in train_generator.class_indices.items()], key=lambda x:x[0])
+    if os.path.isdir(dataset):
+        class_indices = sorted([[v,k] for k,v in data.train_generator.class_indices.items()], key=lambda x:x[0])
         with open(os.path.join(save_dir, 'class_indices.csv'), 'w') as f:
             writer = csv.writer(f, lineterminator='\n')
             writer.writerows(class_indices)
@@ -295,7 +268,7 @@ def main(network: Text,
     if dataset.upper() in [DATASET_MNIST, DATASET_CIFAR10]:
         test_loss, test_acc = model.evaluate(x_test, y_test)
     elif os.path.isdir(dataset):
-        test_loss, test_acc = model.evaluate_generator(test_generator)
+        test_loss, test_acc = model.evaluate_generator(data.test_generator, steps=data.num_test)
     #test_loss, test_acc = model.evaluate(x_test, y_test)
     log.info('Test accuracy: {}'.format(test_acc))
     content = 'Test summary\n\n'
