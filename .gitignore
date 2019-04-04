@@ -1,3 +1,6 @@
 __pycache__
 tmp
 *.swp
+train*.sh
+test*.sh
+predict*.sh

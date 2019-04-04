@@ -13,6 +13,8 @@ def arg_parser():
     psr.add_argument('-vd', '--validation', help='validation dataset directory', required=False, default='')
     psr.add_argument('-wt', '--weights', help='pre-trained weights for fine-tuning. supported only "imagenet".', required=False, default='')
     psr.add_argument('-fc', '--full_conn', help='specify last full connection layers structure except output layer. This argument will be used only when `weights` is "imagenet"', nargs='+', type=float, default=[])
+    psr.add_argument('--no_training', help='don\'t execute training if this argument is set.', action='store_true')
+    psr.add_argument('--no_test', help='don\'t execute test if this argument is set.', action='store_true')
 
     return psr
 

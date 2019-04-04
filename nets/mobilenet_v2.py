@@ -28,7 +28,7 @@ def mobilenet_v2(
     elif model_type.upper() == CUSTOM_FULL:
         if full_conn is None:
             full_conn = []
-        model = mobilenet_v2_custom_full_conn(
+        model = mobilenet_v2_custom_full_conn2(
                 in_shape,
                 weights,
                 full_conn + [out_units],
@@ -89,15 +89,54 @@ def mobilenet_v2_custom_full_conn(
     else:
         top_model = Sequential()
         #top_model.add(Flatten(input_shape=base_model.output_shape[1:]))
-        top_model.add(GlobalAveragePooling2D())
-        for n in full_conn[:-1]: # except the output layer
+        top_model.add(GlobalAveragePooling2D(name='custom_global_average_pooling_2d'))
+        for i, n in enumerate(full_conn[:-1]): # except the output layer
             assert n > 0
             if n < 1: # means dropout
-                top_model.add(Dropout(n))
+                top_model.add(Dropout(n, name='custom_dropout_'+str(i)))
             else: # full connection layer
-                top_model.add(Dense(n, activation='relu'))
+                top_model.add(Dense(n, activation='relu', name='custom_dense_'+str(i)))
 
-        top_model.add(Dense(full_conn[-1], activation='softmax'))
+        top_model.add(Dense(full_conn[-1], activation='softmax', name='custom_out_'+str(i+1)))
         model = Model(inputs=base_model.input, outputs=top_model(base_model.output))
 
     return model
+
+def mobilenet_v2_custom_full_conn2(
+        in_shape: Tuple[int, int, int],
+        weights: Union[None, Text],
+        full_conn: List[int],
+        alpha: float=1.0
+        ):
+    '''mobilenet v2 with customized full connection layers
+    :param in_shape: input shape (height, width, channel)
+    :param full_conn: specify last full connection layers structure except output layer.
+    :param alpha: alpha value to adjust the no. of filters
+    '''
+    model = None
+    main_input = Input(shape=in_shape)
+    base_model = MobileNetV2(
+            include_top=False,
+            weights=weights,
+            input_tensor=main_input
+            )
+    
+    if full_conn is None:
+        raise RuntimeError('invalid arguments, "{}". You must set `full_conn` argument for this network.'.format(full_conn))
+    else:
+        mbn2_output = base_model.output
+        print(mbn2_output)
+        x = GlobalAveragePooling2D()(mbn2_output)
+        for n in full_conn[:-1]: # except the output layer
+            assert n > 0
+            if n < 1: # means dropout
+                x = Dropout(n)(x)
+            else: # full connection layer
+                x = Dense(n, activation='relu')(x)
+
+        output = Dense(full_conn[-1], activation='softmax')(x)
+
+    model = Model(inputs=main_input, outputs=output)
+
+    return model
+
